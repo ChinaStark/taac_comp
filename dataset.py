@@ -706,8 +706,28 @@ def get_pcvr_data(
             rg_info.append((f, i, pf.metadata.row_group(i).num_rows))
     total_rgs = len(rg_info)
 
-    n_valid_rgs = max(1, int(total_rgs * valid_ratio))
-    n_train_rgs = total_rgs - n_valid_rgs
+    if total_rgs == 0:
+        raise ValueError(
+            f"No Parquet row groups found under {data_dir}. "
+            "Please check the data path and parquet files."
+        )
+
+    reuse_train_for_valid = False
+    if total_rgs == 1:
+        # Demo/sample data may contain only a single Row Group. In that case,
+        # keep training usable by reusing the same Row Group for validation
+        # instead of producing an empty train split.
+        n_train_rgs = 1
+        n_valid_rgs = 1 if valid_ratio > 0 else 0
+        reuse_train_for_valid = n_valid_rgs > 0
+        logging.warning(
+            "Only one Row Group detected; reusing it for both train and valid "
+            "to avoid an empty split. Validation metrics will be optimistic."
+        )
+    else:
+        n_valid_rgs = max(1, int(total_rgs * valid_ratio)) if valid_ratio > 0 else 0
+        n_valid_rgs = min(n_valid_rgs, total_rgs - 1)
+        n_train_rgs = total_rgs - n_valid_rgs
 
     # train_ratio: use only the first N% of the training Row Groups.
     if train_ratio < 1.0:
@@ -715,7 +735,12 @@ def get_pcvr_data(
         logging.info(f"train_ratio={train_ratio}: using {n_train_rgs} train Row Groups")
 
     train_rows = sum(r[2] for r in rg_info[:n_train_rgs])
-    valid_rows = sum(r[2] for r in rg_info[n_train_rgs:])
+    if reuse_train_for_valid:
+        valid_rows = train_rows
+        valid_row_group_range = (0, n_train_rgs)
+    else:
+        valid_rows = sum(r[2] for r in rg_info[n_train_rgs:])
+        valid_row_group_range = (n_train_rgs, total_rgs)
 
     logging.info(f"Row Group split: {n_train_rgs} train ({train_rows} rows), "
                  f"{n_valid_rgs} valid ({valid_rows} rows)")
@@ -749,7 +774,7 @@ def get_pcvr_data(
         seq_max_lens=seq_max_lens,
         shuffle=False,
         buffer_batches=0,
-        row_group_range=(n_train_rgs, total_rgs),
+        row_group_range=valid_row_group_range,
         clip_vocab=clip_vocab,
     )
     valid_loader = DataLoader(

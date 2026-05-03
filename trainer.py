@@ -294,9 +294,21 @@ class PCVRHyFormerRankingTrainer:
         print("Start training (PCVRHyFormer)")
         self.model.train()
         total_step = 0
+        train_loader_len = len(self.train_loader)
+        valid_loader_len = len(self.valid_loader)
+
+        if train_loader_len == 0:
+            raise ValueError(
+                "Training loader is empty. Please check the parquet split, "
+                "Row Group count, and train/valid ratio settings."
+            )
+        if valid_loader_len == 0:
+            logging.warning(
+                "Validation loader is empty; validation and early stopping will be skipped."
+            )
 
         for epoch in range(1, self.num_epochs + 1):
-            train_pbar = tqdm(enumerate(self.train_loader), total=len(self.train_loader),
+            train_pbar = tqdm(enumerate(self.train_loader), total=train_loader_len,
                               dynamic_ncols=True)
             loss_sum = 0.0
 
@@ -311,7 +323,11 @@ class PCVRHyFormerRankingTrainer:
                 train_pbar.set_postfix({"loss": f"{loss:.4f}"})
 
                 # Step-level validation (only when eval_every_n_steps > 0).
-                if self.eval_every_n_steps > 0 and total_step % self.eval_every_n_steps == 0:
+                if (
+                    valid_loader_len > 0
+                    and self.eval_every_n_steps > 0
+                    and total_step % self.eval_every_n_steps == 0
+                ):
                     logging.info(f"Evaluating at step {total_step}")
                     val_auc, val_logloss = self.evaluate(epoch=epoch)
                     self.model.train()
@@ -329,7 +345,10 @@ class PCVRHyFormerRankingTrainer:
                         logging.info(f"Early stopping at step {total_step}")
                         return
 
-            logging.info(f"Epoch {epoch}, Average Loss: {loss_sum / len(self.train_loader)}")
+            logging.info(f"Epoch {epoch}, Average Loss: {loss_sum / train_loader_len}")
+
+            if valid_loader_len == 0:
+                continue
 
             val_auc, val_logloss = self.evaluate(epoch=epoch)
             self.model.train()
@@ -438,6 +457,10 @@ class PCVRHyFormerRankingTrainer:
         if not epoch:
             epoch = -1
 
+        if len(self.valid_loader) == 0:
+            logging.warning("Validation loader is empty; returning default metrics.")
+            return 0.0, float('inf')
+
         pbar = tqdm(enumerate(self.valid_loader), total=len(self.valid_loader))
 
         all_logits_list = []
@@ -448,6 +471,10 @@ class PCVRHyFormerRankingTrainer:
                 logits, labels = self._evaluate_step(batch)
                 all_logits_list.append(logits.detach().cpu())
                 all_labels_list.append(labels.detach().cpu())
+
+        if not all_logits_list:
+            logging.warning("Validation produced no batches; returning default metrics.")
+            return 0.0, float('inf')
 
         all_logits = torch.cat(all_logits_list, dim=0)
         all_labels = torch.cat(all_labels_list, dim=0).long()
