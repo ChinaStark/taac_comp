@@ -1,0 +1,24 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+# Data files
+*.parquet
+*.csv
+*.tsv
+*.feather
+*.arrow
+data/
+datasets/
+
+# Training outputs
+outputs/
+logs/
+checkpoints/
+runs/
+events.out.tfevents.*
+
+# Local environments
+.venv/
+venv/
+env/
