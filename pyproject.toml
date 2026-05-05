@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "taac2026"
+dynamic = ["version"]
+description = "TAAC 2026 experiment workspace"
+requires-python = ">=3.10,<3.14"
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+]
+dependencies = [
+    "datasets==2.14.7",
+    "matplotlib==3.10.8",
+    "numpy==2.2.5",
+    "orjson==3.11.8",
+    "pyarrow==23.0.1",
+    "rich==14.3.3",
+    "safetensors==0.7.0",
+    "scikit-learn==1.7.2",
+    "tensorboard==2.19.0",
+    "tomli==2.4.0",
+    "tqdm==4.67.3",
+    "triton==3.3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "hypothesis==6.151.12",
+    "pytest==9.0.3",
+    "pytest-benchmark==5.2.3",
+    "pytest-cov==7.1.0",
+    "ruff==0.15.12",
+    "zensical==0.0.38",
+]
+cuda126 = [
+    "torch==2.7.1+cu126",
+    "fbgemm-gpu==1.2.0+cu126",
+    "torchrec==1.2.0+cu126",
+]
+
+[tool.uv.sources]
+torch = [
+    { index = "pytorch-cu126", extra = "cuda126" },
+]
+"fbgemm-gpu" = [
+    { index = "pytorch-cu126", extra = "cuda126" },
+]
+torchrec = [
+    { index = "pytorch-cu126", extra = "cuda126" },
+]
+
+[[tool.uv.index]]
+name = "pypi"
+url = "https://pypi.org/simple"
+default = true
+
+[[tool.uv.index]]
+name = "pytorch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+
+[project.scripts]
+taac-train = "taac2026.application.training.cli:main"
+taac-evaluate = "taac2026.application.evaluation.cli:main"
+taac-package-train = "taac2026.application.maintenance.package_training:main"
+taac-package-infer = "taac2026.application.maintenance.package_inference:main"
+taac-generate-pcvr-synthetic-dataset = "taac2026.application.maintenance.generate_pcvr_synthetic_dataset:main"
+taac-plot-model-performance = "taac2026.application.reporting.cli:main"
+taac-tech-timeline = "taac2026.application.reporting.timeline_cli:main"
+taac-bench-report = "taac2026.application.reporting.bench_cli:main"
+taac-benchmark-pcvr-data-pipeline = "taac2026.application.reporting.pcvr_data_pipeline_benchmark:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "taac2026.__version__" }
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
